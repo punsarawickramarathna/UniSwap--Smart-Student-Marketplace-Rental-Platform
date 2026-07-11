@@ -1,8 +1,8 @@
-# 🎓 UniSwap AI
+# 🎓 UniSwap 
 
-> AI-Free Smart Student Marketplace & Rental Platform
+> Smart Student Marketplace & Rental Platform
 
-UniSwap AI is a web-based e-commerce platform designed exclusively for university students. It enables students to securely buy, sell, rent, and exchange academic and personal items within their university community.
+UniSwap is a web-based e-commerce platform designed exclusively for university students. It enables students to securely buy, sell, rent, and exchange academic and personal items within their university community.
 
 ---
 
@@ -10,7 +10,7 @@ UniSwap AI is a web-based e-commerce platform designed exclusively for universit
 
 Many university students struggle to find affordable textbooks, laptops, calculators, and other educational resources. Existing e-commerce platforms are not designed specifically for students, making transactions less secure and less convenient.
 
-UniSwap AI provides a trusted marketplace where only verified university students can trade products safely.
+UniSwap provides a trusted marketplace where only verified university students can trade products safely.
 
 ---
 
@@ -113,7 +113,7 @@ UniSwap AI provides a trusted marketplace where only verified university student
 # 📂 Project Structure
 
 ```
-UniSwap-AI
+UniSwap
 │
 ├── frontend
 │   ├── public
@@ -345,7 +345,7 @@ This project is developed for educational purposes as part of the **E-Commerce P
 
 # 👨‍💻 Developed By
 
-**UniSwap AI Development Team**
+**UniSwap Development Team**
 
 Faculty of Information Technology
 
