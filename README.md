@@ -1,4 +1,4 @@
-# 🎓 UniSwap 
+# 🎓 UniSwap
 
 > Smart Student Marketplace & Rental Platform
 
@@ -94,19 +94,19 @@ UniSwap provides a trusted marketplace where only verified university students c
 
 ## Database
 
-- MongoDB
+- Supabase PostgreSQL
 
 ## Authentication
 
 - JWT
-- Bcrypt
+- Argon2 password hashing (planned)
 
 ## Tools
 
 - GitHub
 - Postman
 - VS Code
-- MongoDB Compass
+- Supabase Dashboard
 
 ---
 
@@ -143,7 +143,7 @@ UniSwap
 
 ---
 
-# 🗄 Database Collections
+# 🗄 Database Tables
 
 - users
 - products
@@ -157,9 +157,16 @@ UniSwap
 - notifications
 - recommendations
 
+> Member 1 owns authentication and notification-related tables only. Product, cart,
+> order, payment, delivery, review, admin, and recommendation tables are listed for
+> team planning and should be implemented by their assigned members.
+
 ---
 
 # 👥 Team Responsibilities
+
+The detailed Member 1 ownership and integration contract is documented in
+[`docs/member1-auth-notifications.md`](docs/member1-auth-notifications.md).
 
 ## Member 1
 
@@ -246,6 +253,27 @@ UniSwap
 
 # 🚀 Getting Started
 
+## Quick Start
+
+From the project root, run:
+
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+This removes common caches, installs backend and frontend dependencies, creates
+`.env` from `.env.example` when needed, and starts both development servers.
+Update `.env` with a valid database URL and JWT secret before using the backend.
+
+Useful commands:
+
+```bash
+./run.sh clean    # remove caches and frontend build output
+./run.sh install  # install dependencies only
+./run.sh start    # start both servers
+```
+
 ## Clone Repository
 
 ```bash
@@ -257,15 +285,14 @@ git clone https://github.com/YOUR_USERNAME/UniSwap-AI.git
 ## Backend Setup
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements-dev.txt
+
+cp .env.example .env
+
 cd backend
-
-python -m venv venv
-
-venv\Scripts\activate
-
-pip install -r requirements.txt
-
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8000
 ```
 
 Backend runs on
@@ -290,6 +317,17 @@ Frontend runs on
 
 ```
 http://localhost:5173
+```
+
+## Tests
+
+```bash
+cd backend
+../.venv/bin/pytest -q
+
+cd ../frontend
+npm test
+npm run build
 ```
 
 ---
