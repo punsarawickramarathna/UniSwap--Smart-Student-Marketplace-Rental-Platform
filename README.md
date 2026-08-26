@@ -136,6 +136,8 @@ UniSwap
 │
 ├── docs
 │
+├── run.sh                 # macOS/Linux and Git Bash/WSL launcher
+├── run.ps1                # Windows PowerShell launcher
 ├── README.md
 │
 └── .gitignore
@@ -255,6 +257,19 @@ The detailed Member 1 ownership and integration contract is documented in
 
 ## Quick Start
 
+### Prerequisites
+
+- Python 3.10 or newer
+- Node.js and npm (Node.js 22.22.2+, 24.15+, or 26+ is recommended by the frontend dependencies)
+- Git
+
+The launchers create a project-local `.venv`, install the backend and frontend
+dependencies, copy `.env.example` to `.env` when needed, and start both development
+servers. Before using the backend, update `.env` with a valid database URL and JWT
+secret.
+
+### macOS or Linux
+
 From the project root, run:
 
 ```bash
@@ -262,9 +277,28 @@ chmod +x run.sh
 ./run.sh
 ```
 
-This removes common caches, installs backend and frontend dependencies, creates
-`.env` from `.env.example` when needed, and starts both development servers.
-Update `.env` with a valid database URL and JWT secret before using the backend.
+### Windows PowerShell
+
+From the project root, run:
+
+```powershell
+.\run.ps1
+```
+
+Press `Ctrl+C` or `Q` to stop both development servers on Windows.
+
+If PowerShell blocks local scripts, run the launcher for the current session with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+Windows users running Git Bash or WSL can use `./run.sh` instead. The shell script
+automatically uses `.venv/Scripts/python.exe` in Git Bash and `.venv/bin/python` on
+macOS, Linux, and WSL. Because virtual environments are OS-specific, switching
+between Windows and WSL/macOS may recreate `.venv`.
+
+### Launcher Commands
 
 Useful commands:
 
@@ -272,6 +306,16 @@ Useful commands:
 ./run.sh clean    # remove caches and frontend build output
 ./run.sh install  # install dependencies only
 ./run.sh start    # start both servers
+./run.sh reset    # clean, install, and start (the default)
+```
+
+The same commands are available in Windows PowerShell:
+
+```powershell
+.\run.ps1 clean
+.\run.ps1 install
+.\run.ps1 start
+.\run.ps1 reset
 ```
 
 ## Clone Repository
@@ -284,6 +328,9 @@ git clone https://github.com/YOUR_USERNAME/UniSwap-AI.git
 
 ## Backend Setup
 
+The launchers above are recommended. To set up the backend manually on macOS or
+Linux:
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -292,6 +339,17 @@ pip install -r backend/requirements-dev.txt
 cp .env.example .env
 
 cd backend
+uvicorn app.main:app --reload --port 8000
+```
+
+On Windows PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r backend\requirements-dev.txt
+Copy-Item .env.example .env
+Set-Location backend
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -321,11 +379,22 @@ http://localhost:5173
 
 ## Tests
 
+macOS, Linux, Git Bash, or WSL:
+
 ```bash
 cd backend
 ../.venv/bin/pytest -q
 
 cd ../frontend
+npm test
+npm run build
+```
+
+Windows PowerShell (from the project root):
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest backend -q
+Set-Location frontend
 npm test
 npm run build
 ```
