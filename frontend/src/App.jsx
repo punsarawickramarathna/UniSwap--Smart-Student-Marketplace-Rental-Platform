@@ -8,6 +8,7 @@ import { NAVIGATION_EVENT, handleAppLink, navigate } from "./navigation";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import ProductDashboardPage from "./pages/ProductDashboardPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SignupPage from "./pages/SignupPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -72,6 +73,7 @@ export default function App() {
   }, []);
 
   if (pathname === "/") return <HomePage />;
+  if (pathname === "/marketplace") return <ProductDashboardPage />;
   if (pathname === "/login") return <LoginPage />;
   if (pathname === "/signup") return <SignupPage />;
   if (pathname === "/verify-email") return <VerifyEmailPage />;
