@@ -1,0 +1,1 @@
+"""UniSwap FastAPI application package."""
