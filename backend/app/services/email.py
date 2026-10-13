@@ -21,6 +21,14 @@ class EmailSender(Protocol):
         expires_minutes: int,
     ) -> None: ...
 
+    async def send_order_notification(
+        self,
+        *,
+        recipient: str,
+        subject: str,
+        message: str,
+    ) -> None: ...
+
 
 class SmtpEmailSender:
     def __init__(
@@ -79,6 +87,20 @@ class SmtpEmailSender:
             "If you did not request a reset, you can ignore this email."
         )
         await asyncio.to_thread(self._send_message, message)
+
+    async def send_order_notification(
+        self,
+        *,
+        recipient: str,
+        subject: str,
+        message: str,
+    ) -> None:
+        email_msg = EmailMessage()
+        email_msg["From"] = self._mail_from
+        email_msg["To"] = recipient
+        email_msg["Subject"] = subject
+        email_msg.set_content(message)
+        await asyncio.to_thread(self._send_message, email_msg)
 
     def _send_message(self, message: EmailMessage) -> None:
         with smtplib.SMTP(

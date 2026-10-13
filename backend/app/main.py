@@ -138,7 +138,9 @@ def create_app(
         session_service=session_service,
     )
 
-    app.state.payment_delivery_service = PaymentDeliveryService()
+    app.state.payment_delivery_service = PaymentDeliveryService(
+        settings=active_settings, email_sender=active_email_sender
+    )
 
     register_error_handlers(app)
     app.include_router(auth_router)

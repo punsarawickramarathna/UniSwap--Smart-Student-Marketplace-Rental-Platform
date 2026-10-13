@@ -4,13 +4,28 @@ import { handleAppLink, navigate } from "../navigation";
 import api from "../services/api";
 
 const MOCK_ITEMS = [
-  { id: 1, name: "Apple iPad Air M2 (128GB)", price: 599.00, category: "Electronics" },
-  { id: 2, name: "Calculus: Early Transcendentals (8th Ed)", price: 45.00, category: "Textbooks" },
-  { id: 3, name: "Texas Instruments TI-84 Plus Calculator", price: 85.00, category: "Electronics" },
+  { id: 1, name: "Apple iPad Air M2 (128GB)", price: 599.00, category: "Electronics", sellerId: null },
+  { id: 2, name: "Calculus: Early Transcendentals (8th Ed)", price: 45.00, category: "Textbooks", sellerId: null },
+  { id: 3, name: "Texas Instruments TI-84 Plus Calculator", price: 85.00, category: "Electronics", sellerId: null },
 ];
 
 export default function CheckoutPage() {
-  const [selectedItem, setSelectedItem] = useState(MOCK_ITEMS[1]); // Default to Calculus book
+  const [selectedItem, setSelectedItem] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const itemName = params.get("item_name");
+    const itemPrice = params.get("price");
+    const sellerId = params.get("seller_id");
+    if (itemName && itemPrice) {
+      return {
+        id: "dynamic",
+        name: itemName,
+        price: parseFloat(itemPrice) || 50.0,
+        category: params.get("category") || "Marketplace",
+        sellerId: sellerId || null,
+      };
+    }
+    return MOCK_ITEMS[1];
+  });
   const [deliveryMethod, setDeliveryMethod] = useState("meetup"); // meetup or shipping
   const [paymentMethod, setPaymentMethod] = useState("stripe"); // stripe or cash_on_meetup
 
@@ -35,6 +50,12 @@ export default function CheckoutPage() {
   async function handleCheckout(e) {
     e.preventDefault();
     setError("");
+
+    if (deliveryMethod === "shipping" && !shippingAddress.trim()) {
+      setError("Please provide a valid shipping address for campus parcel delivery.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const finalLocation = meetupLocation === "Custom Location" ? customLocation : meetupLocation;
@@ -54,6 +75,10 @@ export default function CheckoutPage() {
         amount: totalAmount,
         payment_method: paymentMethod,
         delivery_method: deliveryMethod,
+        seller_id: selectedItem.sellerId || null,
+        item_title: selectedItem.name,
+        quantity: 1,
+        shipping_address: deliveryMethod === "shipping" ? shippingAddress : null,
         meetup_location: deliveryMethod === "meetup" ? finalLocation : null,
         meetup_time: deliveryMethod === "meetup" ? meetupIsoTime : null,
       });
@@ -61,8 +86,11 @@ export default function CheckoutPage() {
       const { payment_url, payment_id } = response.data;
 
       if (paymentMethod === "stripe") {
-        // Simulate Stripe Checkout redirection
-        navigate(payment_url || `/payment-success?payment_id=${payment_id}`);
+        if (payment_url && payment_url.startsWith("http")) {
+          window.location.href = payment_url;
+        } else {
+          navigate(payment_url || `/payment-success?payment_id=${payment_id}`);
+        }
       } else {
         // Cash on Meetup -> Navigate directly to delivery tracking
         navigate("/deliveries");

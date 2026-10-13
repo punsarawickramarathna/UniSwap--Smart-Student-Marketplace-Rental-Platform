@@ -11,29 +11,34 @@ async def run_migration():
     print(f"Connecting to database...")
     engine = create_database_engine(db_url)
     
-    # Path to the migration file
-    migration_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../supabase/migrations/20260826233000_create_payments_and_deliveries.sql")
+    # Paths to the migration files
+    migration_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../supabase/migrations")
     )
+    migration_files = [
+        "20260826233000_create_payments_and_deliveries.sql",
+        "20260827100000_update_payments_deliveries_seller_shipping.sql",
+    ]
     
-    if not os.path.exists(migration_path):
-        print(f"Migration file not found at: {migration_path}")
-        return
-
-    print(f"Reading migration file: {migration_path}")
-    with open(migration_path, "r", encoding="utf-8") as f:
-        sql_content = f.read()
-
-    # Split statements by semicolon, ignoring comments and empty lines
     statements = []
-    current_statement = []
-    for line in sql_content.splitlines():
-        if line.strip().startswith("--") or not line.strip():
+    for file_name in migration_files:
+        migration_path = os.path.join(migration_dir, file_name)
+        if not os.path.exists(migration_path):
+            print(f"Migration file not found at: {migration_path}")
             continue
-        current_statement.append(line)
-        if line.strip().endswith(";"):
-            statements.append("\n".join(current_statement))
-            current_statement = []
+
+        print(f"Reading migration file: {file_name}")
+        with open(migration_path, "r", encoding="utf-8") as f:
+            sql_content = f.read()
+
+        current_statement = []
+        for line in sql_content.splitlines():
+            if line.strip().startswith("--") or not line.strip():
+                continue
+            current_statement.append(line)
+            if line.strip().endswith(";"):
+                statements.append("\n".join(current_statement))
+                current_statement = []
 
     async with engine.begin() as conn:
         print("Executing migration statements on the database...")

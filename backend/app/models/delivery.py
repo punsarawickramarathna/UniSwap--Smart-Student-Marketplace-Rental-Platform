@@ -20,11 +20,16 @@ class Delivery(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    seller_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     delivery_method: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled")
     tracking_number: Mapped[str | None] = mapped_column(
         String(255), unique=True, nullable=True
     )
+    carrier: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    shipping_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     meetup_location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     meetup_time: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

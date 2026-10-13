@@ -222,3 +222,85 @@ async def test_qr_verification_marks_delivery_and_order_completed(client, app_co
         assert d.status == "delivered"
         o = await session.get(Order, uuid.UUID(order_id))
         assert o.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_seller_buyer_flow_and_invoice_and_shipping(client, app_context):
+    buyer = await add_user(app_context, email="buyer@campus.edu")
+    seller = await add_user(app_context, email="seller@campus.edu")
+    buyer_token = await login(client, buyer)
+    seller_token = await login(client, seller)
+    buyer_headers = {"Authorization": f"Bearer {buyer_token}", **CSRF_HEADERS}
+    seller_headers = {"Authorization": f"Bearer {seller_token}", **CSRF_HEADERS}
+
+    # 1. Buyer checks out with seller_id and shipping
+    checkout_data = {
+        "amount": 2500.00,
+        "payment_method": "stripe",
+        "delivery_method": "shipping",
+        "seller_id": str(seller.id),
+        "item_title": "Engineering Mechanics Textbook",
+        "quantity": 1,
+        "shipping_address": "Block B, Room 204, Campus Hostel",
+    }
+    checkout_res = await client.post(
+        "/api/payment-delivery/checkout",
+        json=checkout_data,
+        headers=buyer_headers,
+    )
+    assert checkout_res.status_code == 200
+    payment_id = checkout_res.json()["payment_id"]
+    delivery_id = checkout_res.json()["delivery_id"]
+
+    # Check email notification sent to buyer
+    app, _ = app_context
+    assert len(app.state.email_sender.order_notifications) >= 1
+    assert app.state.email_sender.order_notifications[-1]["recipient"] == "buyer@campus.edu"
+
+    # 2. Confirm payment
+    confirm_res = await client.post(
+        f"/api/payment-delivery/payments/{payment_id}/confirm",
+        json={"success": True},
+        headers=buyer_headers,
+    )
+    assert confirm_res.status_code == 200
+    assert confirm_res.json()["status"] == "completed"
+
+    # 3. Get invoice
+    invoice_res = await client.get(
+        f"/api/payment-delivery/payments/{payment_id}/invoice",
+        headers=buyer_headers,
+    )
+    assert invoice_res.status_code == 200
+    inv = invoice_res.json()
+    assert inv["item_title"] == "Engineering Mechanics Textbook"
+    assert inv["amount"] == 2500.00
+    assert inv["buyer_email"] == "buyer@campus.edu"
+    assert inv["seller_email"] == "seller@campus.edu"
+    assert inv["payment_status"] == "completed"
+
+    # 4. Seller lists sales deliveries
+    seller_deliveries_res = await client.get(
+        "/api/payment-delivery/deliveries/user?role=seller",
+        headers=seller_headers,
+    )
+    assert seller_deliveries_res.status_code == 200
+    seller_items = seller_deliveries_res.json()
+    assert len(seller_items) >= 1
+    assert any(d["id"] == delivery_id for d in seller_items)
+
+    # 5. Seller updates shipping status to shipped
+    ship_res = await client.post(
+        f"/api/payment-delivery/deliveries/{delivery_id}/shipping-status",
+        json={
+            "status": "shipped",
+            "carrier": "SL Post Registered Mail",
+            "tracking_number": "SLP-992381-LK",
+        },
+        headers=seller_headers,
+    )
+    assert ship_res.status_code == 200
+    updated_delivery = ship_res.json()
+    assert updated_delivery["status"] == "shipped"
+    assert updated_delivery["carrier"] == "SL Post Registered Mail"
+    assert updated_delivery["tracking_number"] == "SLP-992381-LK"

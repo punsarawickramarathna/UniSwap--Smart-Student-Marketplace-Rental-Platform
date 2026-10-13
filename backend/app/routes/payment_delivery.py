@@ -1,6 +1,6 @@
 import uuid
-from typing import Annotated
-from fastapi import APIRouter, Depends, Request
+from typing import Annotated, Literal
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies.auth import get_current_user
@@ -10,11 +10,13 @@ from app.schemas.payment_delivery import (
     CheckoutRequest,
     CheckoutResponse,
     DeliveryTrackingResponse,
+    InvoiceResponse,
     PaymentConfirmRequest,
     PaymentConfirmResponse,
     RefundRequest,
     RefundResponse,
     ScheduleMeetupRequest,
+    ShippingStatusUpdateRequest,
     VerifyQRRequest,
     VerifyQRResponse,
 )
@@ -34,7 +36,12 @@ async def checkout(
     session: AsyncSession = Depends(get_session),
     service: PaymentDeliveryService = Depends(get_payment_delivery_service),
 ) -> CheckoutResponse:
-    return await service.checkout(session, current_user.id, payload)
+    return await service.checkout(
+        session=session,
+        user_id=current_user.id,
+        request=payload,
+        user_email=current_user.email,
+    )
 
 
 @router.post("/payments/{payment_id}/confirm", response_model=PaymentConfirmResponse)
@@ -59,6 +66,16 @@ async def process_refund(
     return await service.process_refund(session, payment_id, current_user.id)
 
 
+@router.get("/payments/{payment_id}/invoice", response_model=InvoiceResponse)
+async def get_invoice(
+    payment_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: AsyncSession = Depends(get_session),
+    service: PaymentDeliveryService = Depends(get_payment_delivery_service),
+) -> InvoiceResponse:
+    return await service.get_invoice(session, payment_id, current_user.id)
+
+
 @router.get("/payments/user", response_model=list[CheckoutResponse])
 async def list_user_payments(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -70,8 +87,11 @@ async def list_user_payments(
         CheckoutResponse(
             order_id=p.order_id,
             payment_id=p.id,
-            delivery_id=p.order_id,  # Fallback since order_id maps 1-1 to delivery
+            delivery_id=p.order_id,
+            seller_id=p.seller_id,
+            item_title=None,
             amount=float(p.amount),
+            currency=p.currency,
             status=p.status,
         )
         for p in payments
@@ -81,24 +101,30 @@ async def list_user_payments(
 @router.get("/deliveries/user", response_model=list[DeliveryTrackingResponse])
 async def list_user_deliveries(
     current_user: Annotated[User, Depends(get_current_user)],
+    role: Literal["buyer", "seller", "all"] = "all",
     session: AsyncSession = Depends(get_session),
     service: PaymentDeliveryService = Depends(get_payment_delivery_service),
 ) -> list[DeliveryTrackingResponse]:
-    deliveries = await service.list_user_deliveries(session, current_user.id)
+    delivery_tuples = await service.list_user_deliveries(session, current_user.id, role=role)
     return [
         DeliveryTrackingResponse(
             id=d.id,
             order_id=d.order_id,
+            user_id=d.user_id,
+            seller_id=d.seller_id,
+            is_buyer=is_buyer,
             delivery_method=d.delivery_method,
             status=d.status,
             tracking_number=d.tracking_number,
+            carrier=d.carrier,
+            shipping_address=d.shipping_address,
             meetup_location=d.meetup_location,
             meetup_time=d.meetup_time,
             verification_code=d.verification_code,
             created_at=d.created_at,
             updated_at=d.updated_at,
         )
-        for d in deliveries
+        for d, is_buyer in delivery_tuples
     ]
 
 
@@ -114,9 +140,42 @@ async def schedule_meetup(
     return DeliveryTrackingResponse(
         id=d.id,
         order_id=d.order_id,
+        user_id=d.user_id,
+        seller_id=d.seller_id,
+        is_buyer=(d.user_id == current_user.id),
         delivery_method=d.delivery_method,
         status=d.status,
         tracking_number=d.tracking_number,
+        carrier=d.carrier,
+        shipping_address=d.shipping_address,
+        meetup_location=d.meetup_location,
+        meetup_time=d.meetup_time,
+        verification_code=d.verification_code,
+        created_at=d.created_at,
+        updated_at=d.updated_at,
+    )
+
+
+@router.post("/deliveries/{delivery_id}/shipping-status", response_model=DeliveryTrackingResponse)
+async def update_shipping_status(
+    delivery_id: uuid.UUID,
+    payload: ShippingStatusUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: AsyncSession = Depends(get_session),
+    service: PaymentDeliveryService = Depends(get_payment_delivery_service),
+) -> DeliveryTrackingResponse:
+    d = await service.update_shipping_status(session, delivery_id, current_user.id, payload)
+    return DeliveryTrackingResponse(
+        id=d.id,
+        order_id=d.order_id,
+        user_id=d.user_id,
+        seller_id=d.seller_id,
+        is_buyer=(d.user_id == current_user.id),
+        delivery_method=d.delivery_method,
+        status=d.status,
+        tracking_number=d.tracking_number,
+        carrier=d.carrier,
+        shipping_address=d.shipping_address,
         meetup_location=d.meetup_location,
         meetup_time=d.meetup_time,
         verification_code=d.verification_code,
@@ -136,9 +195,14 @@ async def get_delivery_tracking(
     return DeliveryTrackingResponse(
         id=d.id,
         order_id=d.order_id,
+        user_id=d.user_id,
+        seller_id=d.seller_id,
+        is_buyer=(d.user_id == current_user.id),
         delivery_method=d.delivery_method,
         status=d.status,
         tracking_number=d.tracking_number,
+        carrier=d.carrier,
+        shipping_address=d.shipping_address,
         meetup_location=d.meetup_location,
         meetup_time=d.meetup_time,
         verification_code=d.verification_code,
@@ -156,3 +220,15 @@ async def verify_meetup_qr(
     service: PaymentDeliveryService = Depends(get_payment_delivery_service),
 ) -> VerifyQRResponse:
     return await service.verify_meetup_qr(session, delivery_id, current_user.id, payload.verification_code)
+
+
+@router.post("/webhook/stripe")
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: Annotated[str | None, Header(alias="Stripe-Signature")] = None,
+    session: AsyncSession = Depends(get_session),
+    service: PaymentDeliveryService = Depends(get_payment_delivery_service),
+):
+    body = await request.body()
+    # Simple webhook acknowledgement
+    return {"received": True}

@@ -20,11 +20,21 @@ class Payment(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    seller_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     payment_method: Mapped[str] = mapped_column(String(32), nullable=False)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="LKR")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     transaction_reference: Mapped[str | None] = mapped_column(
         String(255), unique=True, nullable=True
+    )
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    receipt_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
