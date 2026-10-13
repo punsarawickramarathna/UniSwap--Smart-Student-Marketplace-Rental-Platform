@@ -103,13 +103,22 @@ class SmtpEmailSender:
         await asyncio.to_thread(self._send_message, email_msg)
 
     def _send_message(self, message: EmailMessage) -> None:
-        with smtplib.SMTP(
-            self._smtp_host,
-            self._smtp_port,
-            timeout=self._timeout_seconds,
-        ) as smtp:
-            if self._use_starttls:
-                smtp.starttls()
-            if self._smtp_username:
-                smtp.login(self._smtp_username, self._smtp_password or "")
-            smtp.send_message(message)
+        try:
+            with smtplib.SMTP(
+                self._smtp_host,
+                self._smtp_port,
+                timeout=self._timeout_seconds,
+            ) as smtp:
+                if self._use_starttls:
+                    smtp.starttls()
+                if self._smtp_username:
+                    smtp.login(self._smtp_username, self._smtp_password or "")
+                smtp.send_message(message)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                "SMTP dispatch failed (%s). Recipient='%s', Subject='%s'",
+                exc,
+                message.get("To"),
+                message.get("Subject"),
+            )

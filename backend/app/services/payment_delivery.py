@@ -51,6 +51,19 @@ class PaymentDeliveryService:
         part2 = "".join(secrets.choice(digits) for _ in range(4))
         return f"TRK-{part1}-{part2}"
 
+    async def _safe_send_notification(self, recipient: str, subject: str, message: str) -> None:
+        if not self._email_sender:
+            return
+        try:
+            await self._email_sender.send_order_notification(
+                recipient=recipient,
+                subject=subject,
+                message=message,
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("Failed to send order email notification to %s: %s", recipient, exc)
+
     async def checkout(
         self,
         session: AsyncSession,
@@ -154,7 +167,7 @@ class PaymentDeliveryService:
                 payment_url = f"/payment-success?payment_id={payment.id}"
 
         # 5. Send order placement email notification
-        if self._email_sender and user_email:
+        if user_email:
             details_str = (
                 f"Item: {item_title} (Qty: {request.quantity})\n"
                 f"Amount: {request.amount:.2f} {self._settings.payment_currency}\n"
@@ -165,7 +178,7 @@ class PaymentDeliveryService:
             elif request.delivery_method == "shipping":
                 details_str += f"\nTracking: {tracking_num}"
 
-            await self._email_sender.send_order_notification(
+            await self._safe_send_notification(
                 recipient=user_email,
                 subject=f"UniSwap Order Placed - #{str(order.id)[:8]}",
                 message=(
@@ -217,8 +230,8 @@ class PaymentDeliveryService:
 
             # Notify buyer
             buyer = await session.get(User, payment.user_id)
-            if self._email_sender and buyer:
-                await self._email_sender.send_order_notification(
+            if buyer:
+                await self._safe_send_notification(
                     recipient=buyer.email,
                     subject=f"UniSwap Payment Received - Receipt for Order #{str(payment.order_id)[:8]}",
                     message=(
@@ -268,8 +281,8 @@ class PaymentDeliveryService:
 
         # Email buyer about refund
         buyer = await session.get(User, payment.user_id)
-        if self._email_sender and buyer:
-            await self._email_sender.send_order_notification(
+        if buyer:
+            await self._safe_send_notification(
                 recipient=buyer.email,
                 subject=f"UniSwap Refund Processed - Order #{str(payment.order_id)[:8]}",
                 message=f"Your refund of {payment.amount:.2f} {payment.currency} has been processed successfully.",
@@ -310,8 +323,8 @@ class PaymentDeliveryService:
 
         # Notify buyer
         buyer = await session.get(User, delivery.user_id)
-        if self._email_sender and buyer:
-            await self._email_sender.send_order_notification(
+        if buyer:
+            await self._safe_send_notification(
                 recipient=buyer.email,
                 subject=f"UniSwap Meetup Scheduled - Order #{str(delivery.order_id)[:8]}",
                 message=(
@@ -348,8 +361,8 @@ class PaymentDeliveryService:
                 order.status = "completed"
 
         buyer = await session.get(User, delivery.user_id)
-        if self._email_sender and buyer:
-            await self._email_sender.send_order_notification(
+        if buyer:
+            await self._safe_send_notification(
                 recipient=buyer.email,
                 subject=f"UniSwap Shipping Update - Order #{str(delivery.order_id)[:8]}",
                 message=(
@@ -397,8 +410,8 @@ class PaymentDeliveryService:
 
         # Send completion notifications
         buyer = await session.get(User, delivery.user_id)
-        if self._email_sender and buyer:
-            await self._email_sender.send_order_notification(
+        if buyer:
+            await self._safe_send_notification(
                 recipient=buyer.email,
                 subject=f"UniSwap Trade Completed - Order #{str(delivery.order_id)[:8]}",
                 message="Campus meetup verification successful. Your item handoff is completed!",

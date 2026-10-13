@@ -104,7 +104,7 @@ export default function App() {
       </ProtectedRoute>
     );
   }
-  if (pathname === "/payment-success") {
+  if (pathname === "/payment-success" || pathname === "/payment/success") {
     return (
       <ProtectedRoute loadingFallback={<AuthLoadingScreen />} unauthenticatedFallback={<LoginPage />}>
         <PaymentSuccessPage />
