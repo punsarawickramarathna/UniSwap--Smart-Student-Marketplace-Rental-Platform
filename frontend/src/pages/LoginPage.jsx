@@ -10,7 +10,7 @@ const STUDENT_ID_PATTERN = /^ITBIN\d{8}$/;
 export default function LoginPage() {
   const { authNotice, login } = useAuth();
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const [studentId, setStudentId] = useState((params.get("studentId") || "").toUpperCase());
+  const [studentId, setStudentId] = useState(params.get("studentId") || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -22,14 +22,21 @@ export default function LoginPage() {
     event.preventDefault();
     setError("");
     setVerificationRequired(false);
-    const normalizedId = studentId.trim().toUpperCase();
-    if (!STUDENT_ID_PATTERN.test(normalizedId)) {
-      setError("Student ID must start with ITBIN followed by exactly 8 digits.");
-      return;
+    const rawInput = studentId.trim();
+    let credentials = {};
+    if (rawInput.includes("@")) {
+      credentials = { email: rawInput.toLowerCase(), password };
+    } else {
+      const normalizedId = rawInput.toUpperCase();
+      if (!STUDENT_ID_PATTERN.test(normalizedId)) {
+        setError("Student ID must start with ITBIN followed by 8 digits (or enter your university email).");
+        return;
+      }
+      credentials = { studentId: normalizedId, password };
     }
     setIsSubmitting(true);
     try {
-      await login({ studentId: normalizedId, password });
+      await login(credentials);
       const returnTo = params.get("returnTo");
       const safeTarget = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/dashboard";
       navigate(safeTarget, { replace: true });
@@ -80,10 +87,20 @@ export default function LoginPage() {
 
           <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label className="mb-2 block text-sm font-bold" htmlFor="login-student-id">Student ID</label>
+              <label className="mb-2 block text-sm font-bold" htmlFor="login-student-id">Student ID or University Email</label>
               <div className="relative">
                 <UserRound aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[#75857f]" size={18} />
-                <input autoCapitalize="characters" autoComplete="username" className="auth-input auth-input--leading-icon font-mono uppercase tracking-[.04em]" id="login-student-id" maxLength={13} onChange={(event) => setStudentId(event.target.value.toUpperCase().replace(/\s/g, ""))} placeholder="ITBIN12345678" required value={studentId} />
+                <input
+                  autoCapitalize="none"
+                  autoComplete="username"
+                  className="auth-input auth-input--leading-icon"
+                  id="login-student-id"
+                  maxLength={100}
+                  onChange={(event) => setStudentId(event.target.value.trim())}
+                  placeholder="ITBIN12345678 or student@horizoncampus.edu.lk"
+                  required
+                  value={studentId}
+                />
               </div>
             </div>
             <div>

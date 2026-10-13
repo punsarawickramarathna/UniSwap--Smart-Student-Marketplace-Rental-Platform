@@ -40,6 +40,11 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        if engine is not None:
+            from app.database import Base
+            import app.models
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
         yield
         if engine is not None:
             await engine.dispose()
