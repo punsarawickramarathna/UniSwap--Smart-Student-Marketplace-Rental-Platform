@@ -9,7 +9,9 @@ from app.config import Settings, get_settings
 from app.database import create_database_engine, create_session_factory
 from app.errors import register_error_handlers
 from app.routes.auth import router as auth_router
+from app.routes.payment_delivery import router as payment_delivery_router
 from app.services.auth import AuthService
+from app.services.payment_delivery import PaymentDeliveryService
 from app.services.email import EmailSender, SmtpEmailSender
 from app.services.jwt import JwtService
 from app.services.one_time_token import OneTimeTokenService
@@ -136,8 +138,13 @@ def create_app(
         session_service=session_service,
     )
 
+    app.state.payment_delivery_service = PaymentDeliveryService(
+        settings=active_settings, email_sender=active_email_sender
+    )
+
     register_error_handlers(app)
     app.include_router(auth_router)
+    app.include_router(payment_delivery_router)
     return app
 
 
