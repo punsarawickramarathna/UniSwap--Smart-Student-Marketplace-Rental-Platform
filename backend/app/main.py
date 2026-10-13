@@ -9,6 +9,10 @@ from app.config import Settings, get_settings
 from app.database import create_database_engine, create_session_factory
 from app.errors import register_error_handlers
 from app.routes.auth import router as auth_router
+from app.routes.categories import router as categories_router
+from app.routes.products import router as products_router
+from app.routes.reviews import router as reviews_router
+from app.routes.sellers import router as sellers_router
 from app.services.auth import AuthService
 from app.services.email import EmailSender, SmtpEmailSender
 from app.services.jwt import JwtService
@@ -22,6 +26,7 @@ from app.services.rate_limit import (
     PasswordResetRateLimiter,
 )
 from app.services.session import SessionService
+from app.services.storage import StorageService
 
 
 def create_app(
@@ -47,8 +52,8 @@ def create_app(
         CORSMiddleware,
         allow_origins=active_settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Protection"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-CSRF-Protection", "Accept"],
     )
 
     password_service = PasswordService()
@@ -136,8 +141,23 @@ def create_app(
         session_service=session_service,
     )
 
+    storage_service = StorageService(
+        supabase_url=active_settings.supabase_url,
+        service_role_key=(
+            active_settings.supabase_service_role_key.get_secret_value()
+            if active_settings.supabase_service_role_key
+            else None
+        ),
+        bucket_name=active_settings.supabase_storage_bucket,
+    )
+    app.state.storage_service = storage_service
+
     register_error_handlers(app)
     app.include_router(auth_router)
+    app.include_router(categories_router)
+    app.include_router(products_router)
+    app.include_router(reviews_router)
+    app.include_router(sellers_router)
     return app
 
 

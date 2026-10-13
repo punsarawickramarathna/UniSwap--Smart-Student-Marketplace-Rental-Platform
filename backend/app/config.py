@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_use_starttls: bool = True
 
+    supabase_url: str | None = None
+    supabase_service_role_key: SecretStr | None = None
+    supabase_storage_bucket: str = "product-images"
+
     model_config = SettingsConfigDict(
         env_file=(ROOT_ENV_FILE, ".env"),
         env_file_encoding="utf-8",

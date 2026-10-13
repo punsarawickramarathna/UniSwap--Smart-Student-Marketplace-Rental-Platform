@@ -1,4 +1,4 @@
-import { LoaderCircle, LogOut, ShoppingBag } from "lucide-react";
+import { ArrowRight, LoaderCircle, LogOut, ShoppingBag } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import campusMarketplace from "./assets/campus-marketplace.jpg";
@@ -36,20 +36,68 @@ function SignedInView() {
     <main className="min-h-screen bg-[#f4f7f5] text-[#13201c]">
       <header className="flex h-16 items-center justify-between border-b border-[#d8e0dc] bg-white px-5 sm:px-8">
         <a className="flex items-center gap-3 font-semibold" href="/" onClick={handleAppLink("/")}>
-          <span className="grid size-9 place-items-center rounded-xl bg-[#173f36] text-white"><ShoppingBag aria-hidden="true" size={19} /></span>
+          <span className="grid size-9 place-items-center rounded-xl bg-[#173f36] text-white">
+            <ShoppingBag aria-hidden="true" size={19} />
+          </span>
           UniSwap
         </a>
-        <button className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-[#8c2929] transition hover:bg-[#f8eeee]" onClick={handleLogout} type="button">
-          <LogOut aria-hidden="true" size={17} /> Sign out
-        </button>
+        <div className="flex items-center gap-3">
+          <a
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#08a649] px-4 text-xs font-bold text-white transition hover:bg-[#078b3e]"
+            href="/marketplace"
+            onClick={handleAppLink("/marketplace")}
+          >
+            Marketplace
+          </a>
+          <button
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-[#8c2929] transition hover:bg-[#f8eeee]"
+            onClick={handleLogout}
+            type="button"
+          >
+            <LogOut aria-hidden="true" size={17} /> Sign out
+          </button>
+        </div>
       </header>
       <section className="mx-auto grid max-w-5xl gap-8 px-5 py-12 md:grid-cols-[1.1fr_0.9fr] md:items-center md:px-8 md:py-20 page-enter">
         <div>
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[.12em] text-[#2f6d5d]">Verified student account</p>
-          <h1 className="max-w-xl text-4xl font-semibold leading-tight tracking-[-.035em] sm:text-5xl">You&apos;re signed in.</h1>
-          <p className="mt-4 max-w-lg text-base leading-7 text-[#52615b]">Welcome back{user.student_id ? `, ${user.student_id}` : ""}. Your verified email is {user.email}.</p>
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[.12em] text-[#2f6d5d]">
+            Verified student account
+          </p>
+          <h1 className="max-w-xl text-4xl font-semibold leading-tight tracking-[-.035em] sm:text-5xl">
+            You&apos;re signed in.
+          </h1>
+          <p className="mt-4 max-w-lg text-base leading-7 text-[#52615b]">
+            Welcome back{user?.student_id ? `, ${user.student_id}` : ""}. Your verified email is {user?.email}.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a
+              className="inline-flex items-center gap-2 rounded-xl bg-[#08a649] px-5 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#078b3e]"
+              href="/marketplace"
+              onClick={handleAppLink("/marketplace")}
+            >
+              Go to Marketplace <ArrowRight size={14} />
+            </a>
+            <a
+              className="inline-flex items-center gap-2 rounded-xl border border-[#cbe1cf] bg-white px-5 py-3 text-xs font-bold text-[#168044] transition hover:bg-[#edfbf1]"
+              href="/my-products"
+              onClick={handleAppLink("/my-products")}
+            >
+              My Products
+            </a>
+            <a
+              className="inline-flex items-center gap-2 rounded-xl border border-[#cbe1cf] bg-white px-5 py-3 text-xs font-bold text-[#168044] transition hover:bg-[#edfbf1]"
+              href="/my-reviews"
+              onClick={handleAppLink("/my-reviews")}
+            >
+              My Reviews
+            </a>
+          </div>
         </div>
-        <img alt="University students exchanging study items on campus" className="aspect-[4/3] w-full rounded-[2rem] object-cover shadow-[0_24px_70px_rgba(22,53,44,.12)]" src={campusMarketplace} />
+        <img
+          alt="University students exchanging study items on campus"
+          className="aspect-[4/3] w-full rounded-[2rem] object-cover shadow-[0_24px_70px_rgba(22,53,44,.12)]"
+          src={campusMarketplace}
+        />
       </section>
     </main>
   );
@@ -73,7 +121,22 @@ export default function App() {
   }, []);
 
   if (pathname === "/") return <HomePage />;
-  if (pathname === "/marketplace") return <ProductDashboardPage />;
+  if (pathname === "/marketplace") return <ProductDashboardPage initialView="Marketplace" />;
+  if (pathname === "/categories") return <ProductDashboardPage initialView="Categories" />;
+  if (pathname === "/my-products") {
+    return (
+      <ProtectedRoute loadingFallback={<AuthLoadingScreen />} unauthenticatedFallback={<LoginPage />}>
+        <ProductDashboardPage initialView="My Products" />
+      </ProtectedRoute>
+    );
+  }
+  if (pathname === "/my-reviews") {
+    return (
+      <ProtectedRoute loadingFallback={<AuthLoadingScreen />} unauthenticatedFallback={<LoginPage />}>
+        <ProductDashboardPage initialView="My Reviews" />
+      </ProtectedRoute>
+    );
+  }
   if (pathname === "/login") return <LoginPage />;
   if (pathname === "/signup") return <SignupPage />;
   if (pathname === "/verify-email") return <VerifyEmailPage />;
