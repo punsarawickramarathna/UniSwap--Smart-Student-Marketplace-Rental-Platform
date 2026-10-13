@@ -246,12 +246,16 @@ async def test_logout_accepts_an_already_expired_refresh_session(client, app_con
     _, credential, _ = await login(client, app_context)
     _, session_factory = app_context
     expired_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    created_at = datetime.now(timezone.utc) - timedelta(minutes=10)
 
     async with session_factory() as session:
         await session.execute(
             update(AuthSession)
             .where(AuthSession.token_hash == hash_refresh_token(credential))
-            .values(expires_at=expired_at)
+            .values(
+                created_at=created_at,
+                expires_at=expired_at,
+            )
         )
         await session.commit()
 

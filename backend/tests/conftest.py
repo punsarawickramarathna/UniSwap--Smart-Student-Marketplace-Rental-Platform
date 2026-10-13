@@ -17,6 +17,7 @@ class RecordingEmailSender:
     def __init__(self) -> None:
         self.password_reset_messages: list[dict[str, object]] = []
         self.verification_messages: list[dict[str, object]] = []
+        self.order_notifications: list[dict[str, object]] = []
         self.fail_password_reset = False
         self.fail_verification = False
 
@@ -51,6 +52,21 @@ class RecordingEmailSender:
                 "recipient": recipient,
                 "reset_url": reset_url,
                 "expires_minutes": expires_minutes,
+            }
+        )
+
+    async def send_order_notification(
+        self,
+        *,
+        recipient: str,
+        subject: str,
+        message: str,
+    ) -> None:
+        self.order_notifications.append(
+            {
+                "recipient": recipient,
+                "subject": subject,
+                "message": message,
             }
         )
 

@@ -11,6 +11,9 @@ import LoginPage from "./pages/LoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import SignupPage from "./pages/SignupPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import PaymentSuccessPage from "./pages/PaymentSuccessPage";
+import DeliveryDashboardPage from "./pages/DeliveryDashboardPage";
 
 function AuthLoadingScreen() {
   return (
@@ -47,6 +50,22 @@ function SignedInView() {
           <p className="mb-3 text-sm font-semibold uppercase tracking-[.12em] text-[#2f6d5d]">Verified student account</p>
           <h1 className="max-w-xl text-4xl font-semibold leading-tight tracking-[-.035em] sm:text-5xl">You&apos;re signed in.</h1>
           <p className="mt-4 max-w-lg text-base leading-7 text-[#52615b]">Welcome back{user.student_id ? `, ${user.student_id}` : ""}. Your verified email is {user.email}.</p>
+          <div className="mt-8 flex flex-wrap gap-4">
+            <a
+              href="/checkout"
+              onClick={handleAppLink("/checkout")}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#173f36] text-white px-6 font-bold transition hover:bg-[#0f2c25] hover:-translate-y-0.5"
+            >
+              Simulate Purchase (Checkout)
+            </a>
+            <a
+              href="/deliveries"
+              onClick={handleAppLink("/deliveries")}
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#cbd5d0] text-[#173f36] px-6 font-semibold transition hover:bg-[#eaf2ee] hover:-translate-y-0.5"
+            >
+              Track Deliveries & Meetups
+            </a>
+          </div>
         </div>
         <img alt="University students exchanging study items on campus" className="aspect-[4/3] w-full rounded-[2rem] object-cover shadow-[0_24px_70px_rgba(22,53,44,.12)]" src={campusMarketplace} />
       </section>
@@ -77,6 +96,28 @@ export default function App() {
   if (pathname === "/verify-email") return <VerifyEmailPage />;
   if (pathname === "/forgot-password") return <ForgotPasswordPage />;
   if (pathname === "/reset-password") return <ResetPasswordPage onSuccess={redirectToLoginAfterReset} />;
+
+  if (pathname === "/checkout") {
+    return (
+      <ProtectedRoute loadingFallback={<AuthLoadingScreen />} unauthenticatedFallback={<LoginPage />}>
+        <CheckoutPage />
+      </ProtectedRoute>
+    );
+  }
+  if (pathname === "/payment-success") {
+    return (
+      <ProtectedRoute loadingFallback={<AuthLoadingScreen />} unauthenticatedFallback={<LoginPage />}>
+        <PaymentSuccessPage />
+      </ProtectedRoute>
+    );
+  }
+  if (pathname === "/deliveries") {
+    return (
+      <ProtectedRoute loadingFallback={<AuthLoadingScreen />} unauthenticatedFallback={<LoginPage />}>
+        <DeliveryDashboardPage />
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute loadingFallback={<AuthLoadingScreen />} unauthenticatedFallback={<LoginPage />}>

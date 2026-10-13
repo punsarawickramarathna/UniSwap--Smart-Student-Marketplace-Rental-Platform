@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_use_starttls: bool = True
 
+    # Member 4: Payments & Delivery
+    stripe_secret_key: SecretStr | None = None
+    stripe_publishable_key: str | None = None
+    stripe_webhook_secret: SecretStr | None = None
+    payment_currency: str = "LKR"
+
     model_config = SettingsConfigDict(
         env_file=(ROOT_ENV_FILE, ".env"),
         env_file_encoding="utf-8",
