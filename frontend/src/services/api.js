@@ -42,6 +42,7 @@ function isRefreshExcludedRequest(config) {
     "/auth/register",
     "/auth/verify-email",
     "/auth/resend-verification",
+    "/auth/session",
     "/auth/refresh",
     "/auth/logout",
     "/auth/forgot-password",
@@ -70,6 +71,8 @@ export function setAccessToken(token) {
   accessToken = token || null;
   if (accessToken) {
     refreshAllowed = true;
+    // A successful login must supersede any older restoration request.
+    authGeneration += 1;
   }
 }
 
@@ -92,7 +95,7 @@ export function setAuthInvalidatedHandler(handler) {
   };
 }
 
-export function refreshAccessToken() {
+function requestSession(path) {
   if (!refreshAllowed) {
     return Promise.reject(refreshCancelledError());
   }
@@ -101,7 +104,7 @@ export function refreshAccessToken() {
     const requestGeneration = authGeneration;
     const currentRefreshRequest = refreshClient
       .post(
-        "/auth/refresh",
+        path,
         null,
         {
           headers: { "X-CSRF-Protection": "1" },
@@ -113,10 +116,17 @@ export function refreshAccessToken() {
         }
 
         const session = response.data;
+        if (!session) {
+          invalidateAuthState();
+          return null;
+        }
         setAccessToken(session.access_token);
         return session;
       })
       .catch((error) => {
+        if (!refreshAllowed || requestGeneration !== authGeneration) {
+          throw refreshCancelledError();
+        }
         if (isTerminalRefreshFailure(error)) {
           invalidateAuthState();
         }
@@ -132,6 +142,15 @@ export function refreshAccessToken() {
   }
 
   return refreshRequest;
+}
+
+export function refreshAccessToken() {
+  return requestSession("/auth/refresh");
+}
+
+export function restoreAuthSession() {
+  if (!refreshAllowed) return Promise.resolve(null);
+  return requestSession("/auth/session");
 }
 
 api.interceptors.request.use((config) => {
@@ -163,6 +182,7 @@ api.interceptors.response.use(
     originalRequest._authRetry = true;
 
     const session = await refreshAccessToken();
+    if (!session) throw error;
     originalRequest.headers = setHeader(
       originalRequest.headers,
       "Authorization",

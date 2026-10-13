@@ -1,5 +1,6 @@
 import asyncio
 import smtplib
+import ssl
 from email.message import EmailMessage
 from typing import Protocol
 
@@ -103,13 +104,31 @@ class SmtpEmailSender:
         await asyncio.to_thread(self._send_message, email_msg)
 
     def _send_message(self, message: EmailMessage) -> None:
-        with smtplib.SMTP(
+        # Port 465 starts TLS immediately; port 587 upgrades using STARTTLS.
+        use_ssl = self._smtp_port == 465
+        smtp_class = smtplib.SMTP_SSL if use_ssl else smtplib.SMTP
+        tls_context = ssl.create_default_context()
+        kwargs = {"context": tls_context} if use_ssl else {}
+        with smtp_class(
             self._smtp_host,
             self._smtp_port,
             timeout=self._timeout_seconds,
+            **kwargs,
         ) as smtp:
-            if self._use_starttls:
-                smtp.starttls()
+            smtp.ehlo()
+            if self._use_starttls and not use_ssl:
+                smtp.starttls(context=tls_context)
+                smtp.ehlo()
             if self._smtp_username:
-                smtp.login(self._smtp_username, self._smtp_password or "")
+                if "LOGIN" in smtp.esmtp_features.get("auth", "").upper().split():
+                    # Some providers disconnect on AUTH PLAIN. Prefer the
+                    # advertised LOGIN challenge/response flow when available.
+                    credentials = iter((self._smtp_username, self._smtp_password or ""))
+
+                    def auth_login(challenge: bytes | None = None) -> str:
+                        return next(credentials)
+
+                    smtp.auth("LOGIN", auth_login, initial_response_ok=False)
+                else:
+                    smtp.login(self._smtp_username, self._smtp_password or "")
             smtp.send_message(message)

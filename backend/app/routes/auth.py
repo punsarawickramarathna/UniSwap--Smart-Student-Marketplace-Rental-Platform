@@ -31,6 +31,7 @@ from app.services.password_reset import (
     PasswordResetService,
 )
 from app.services.registration import (
+    REGISTER_EMAIL_FAILED_MESSAGE,
     REGISTER_MESSAGE,
     RESEND_MESSAGE,
     VERIFY_MESSAGE,
@@ -116,7 +117,6 @@ def clear_refresh_cookie(response: Response, settings: Settings) -> None:
 )
 async def register(
     payload: RegisterRequest,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     registration_service: RegistrationService = Depends(get_registration_service),
 ) -> RegisterResponse:
@@ -126,11 +126,12 @@ async def register(
         email=str(payload.email),
         password=payload.password.get_secret_value(),
     )
-    background_tasks.add_task(
-        registration_service.deliver_verification_email,
-        delivery,
+    email_sent = await registration_service.deliver_verification_email(delivery)
+    return RegisterResponse(
+        message=REGISTER_MESSAGE if email_sent else REGISTER_EMAIL_FAILED_MESSAGE,
+        student_id=user.student_id or "",
+        verification_email_sent=email_sent,
     )
-    return RegisterResponse(message=REGISTER_MESSAGE, student_id=user.student_id or "")
 
 
 @router.post(
@@ -164,7 +165,6 @@ async def verify_email(
 )
 async def resend_verification(
     payload: ResendVerificationRequest,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
     registration_service: RegistrationService = Depends(get_registration_service),
 ) -> ResendVerificationResponse:
@@ -173,10 +173,12 @@ async def resend_verification(
         student_id=payload.student_id,
     )
     if delivery is not None:
-        background_tasks.add_task(
-            registration_service.deliver_verification_email,
-            delivery,
-        )
+        if not await registration_service.deliver_verification_email(delivery):
+            raise ApiError(
+                status_code=503,
+                code="verification_email_unavailable",
+                message="Unable to send the verification email. Please try again later.",
+            )
     return ResendVerificationResponse(message=RESEND_MESSAGE)
 
 
@@ -260,6 +262,38 @@ async def reset_password(
     )
     clear_refresh_cookie(response, request.app.state.settings)
     return ResetPasswordResponse(message=RESET_PASSWORD_MESSAGE)
+
+
+@router.post(
+    "/session",
+    response_model=LoginResponse | None,
+    response_model_exclude_none=True,
+    responses={403: {"description": "CSRF protection header required"}},
+)
+async def restore_browser_session(
+    request: Request,
+    response: Response,
+    _: Annotated[None, Depends(require_csrf_protection)],
+    session: AsyncSession = Depends(get_session),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> LoginResponse | None:
+    """Restore an existing browser session, or report a normal signed-out state."""
+    response.headers["Cache-Control"] = "no-store"
+    settings: Settings = request.app.state.settings
+    refresh_credential = request.cookies.get(settings.refresh_cookie_name)
+    if not refresh_credential:
+        return None
+
+    try:
+        result = await auth_service.refresh(session, refresh_credential)
+    except ApiError as exc:
+        if exc.code != "invalid_refresh_session":
+            raise
+        clear_refresh_cookie(response, settings)
+        return None
+
+    set_refresh_cookie(response, result, settings)
+    return result.response
 
 
 @router.post(

@@ -72,6 +72,7 @@ class RegisterRequest(BaseModel):
 class RegisterResponse(BaseModel):
     message: str
     student_id: str
+    verification_email_sent: bool
 
 
 class VerifyEmailRequest(BaseModel):

@@ -1,4 +1,5 @@
 import logging
+import smtplib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -18,6 +19,10 @@ from app.services.rate_limit import EmailVerificationRateLimiter
 logger = logging.getLogger(__name__)
 
 REGISTER_MESSAGE = "Account created. We sent a verification code to your university email."
+REGISTER_EMAIL_FAILED_MESSAGE = (
+    "Account created, but we couldn't send your verification code. "
+    "Please try resending it shortly."
+)
 VERIFY_MESSAGE = "Your university email is verified. You can now sign in."
 RESEND_MESSAGE = "If the account is eligible, a new verification code will be sent."
 
@@ -214,15 +219,23 @@ class RegistrationService:
             expires_minutes=self._verification_expire_minutes,
         )
 
-    async def deliver_verification_email(self, delivery: VerificationDelivery) -> None:
+    async def deliver_verification_email(self, delivery: VerificationDelivery) -> bool:
         try:
             await self._email_sender.send_email_verification(
                 recipient=delivery.recipient,
                 code=delivery.code,
                 expires_minutes=delivery.expires_minutes,
             )
+            return True
+        except smtplib.SMTPAuthenticationError:
+            logger.error(
+                "Verification email delivery failed: SMTP authentication rejected. "
+                "Check SMTP_USERNAME and SMTP_PASSWORD; Gmail requires a valid "
+                "App Password for the configured sender account."
+            )
         except Exception:
             logger.exception("Verification email delivery failed")
+        return False
 
     @staticmethod
     def _invalid_code_error() -> ApiError:

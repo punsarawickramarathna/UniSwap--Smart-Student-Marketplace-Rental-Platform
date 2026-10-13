@@ -11,6 +11,7 @@ import {
   register,
   resendVerification,
   resetPassword,
+  restoreSession,
   verifyEmail,
 } from "./services/auth";
 
@@ -20,6 +21,7 @@ vi.mock("./services/auth", () => ({
   login: vi.fn(),
   logout: vi.fn(),
   refreshSession: vi.fn(),
+  restoreSession: vi.fn(),
   register: vi.fn(),
   resendVerification: vi.fn(),
   resetPassword: vi.fn(),
@@ -44,6 +46,7 @@ describe("UniSwap public and authentication experience", () => {
     vi.clearAllMocks();
     window.history.replaceState(null, "", "/");
     getCurrentUser.mockRejectedValue(new Error("No active session"));
+    restoreSession.mockResolvedValue(null);
     logout.mockResolvedValue(undefined);
   });
 
@@ -52,6 +55,32 @@ describe("UniSwap public and authentication experience", () => {
     expect(await screen.findByText("Campus finds,")).toBeTruthy();
     expect(screen.getAllByRole("link", { name: /sign up/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: /log in/i }).length).toBeGreaterThan(0);
+    await waitFor(() => expect(restoreSession).toHaveBeenCalledOnce());
+    expect(getCurrentUser).not.toHaveBeenCalled();
+  });
+
+  it("restores a signed-in user directly from the browser session", async () => {
+    restoreSession.mockResolvedValue({ access_token: "restored", user: {
+      id: "user", student_id: "ITBIN12345678", email: "student@campus.edu",
+    } });
+    await openRoute("/dashboard");
+    expect(await screen.findByText("You're signed in.")).toBeTruthy();
+    expect(getCurrentUser).not.toHaveBeenCalled();
+  });
+
+  it("does not let a late signed-out check undo a successful login", async () => {
+    let resolveRestore;
+    restoreSession.mockReturnValue(new Promise((resolve) => { resolveRestore = resolve; }));
+    login.mockResolvedValue({ access_token: "token", user: {
+      id: "user", student_id: "ITBIN12345678", email: "student@campus.edu",
+    } });
+    await openRoute("/login");
+    fireEvent.change(screen.getByLabelText("Student ID"), { target: { value: "ITBIN12345678" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Strong-password-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in securely" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/dashboard"));
+    resolveRestore(null);
+    expect(await screen.findByText("You're signed in.")).toBeTruthy();
   });
 
   it("validates ITBIN plus exactly eight digits before signup", async () => {
@@ -99,6 +128,44 @@ describe("UniSwap public and authentication experience", () => {
     expect(await screen.findByLabelText("Student ID")).toHaveProperty("value", "ITBIN12345678");
     expect(screen.getByText(/University email verified successfully/)).toBeTruthy();
     expect(verifyEmail).toHaveBeenCalledWith({ studentId: "ITBIN12345678", code: "123456" });
+  });
+
+  it("shows a delivery warning after account creation when SMTP fails", async () => {
+    register.mockResolvedValue({ student_id: "ITBIN12345678", verification_email_sent: false });
+    await openRoute("/signup");
+    fireEvent.change(screen.getByLabelText("Student ID"), { target: { value: "ITBIN12345678" } });
+    fireEvent.change(screen.getByLabelText("University email"), { target: { value: "student@campus.edu" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Strong-password-123" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "Strong-password-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue to verification" }));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent",
+      "Your account was created, but the verification email wasn't delivered. Try resending the code in a minute.");
+    expect(window.location.search).toContain("delivery=failed");
+  });
+
+  it("lets an already created account return to verification", async () => {
+    register.mockRejectedValue(Object.assign(new Error("Account already exists."), { code: "account_already_exists" }));
+    await openRoute("/signup");
+    fireEvent.change(screen.getByLabelText("Student ID"), { target: { value: "ITBIN12345678" } });
+    fireEvent.change(screen.getByLabelText("University email"), { target: { value: "student@campus.edu" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Strong-password-123" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "Strong-password-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue to verification" }));
+    const recovery = await screen.findByRole("link", { name: /Already signed up but didn't receive a code/ });
+    fireEvent.click(recovery);
+    expect(await screen.findByText("Check your university email.")).toBeTruthy();
+    expect(window.location.pathname).toBe("/verify-email");
+  });
+
+  it("rejects passwords made of whitespace before requesting registration", async () => {
+    await openRoute("/signup");
+    fireEvent.change(screen.getByLabelText("Student ID"), { target: { value: "ITBIN12345678" } });
+    fireEvent.change(screen.getByLabelText("University email"), { target: { value: "student@campus.edu" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: " ".repeat(12) } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: " ".repeat(12) } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue to verification" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(register).not.toHaveBeenCalled();
   });
 
   it("logs in using Student ID and enters the protected dashboard", async () => {

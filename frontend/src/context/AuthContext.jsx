@@ -13,6 +13,7 @@ import {
   login as requestLogin,
   logout as requestLogout,
   refreshSession as requestRefreshSession,
+  restoreSession as requestRestoreSession,
   resetPassword as requestResetPassword,
 } from "../services/auth";
 import {
@@ -45,17 +46,17 @@ export function AuthProvider({ children }) {
       }
     });
 
-    getCurrentUser()
-      .then((currentUser) => {
+    requestRestoreSession()
+      .then((session) => {
         if (
           active &&
           initializationGeneration === authStateGeneration.current
         ) {
-          setUser(currentUser);
+          setUser(session?.user ?? null);
         }
       })
       .catch(() => {
-        if (active) {
+        if (active && initializationGeneration === authStateGeneration.current) {
           clearAuthState();
         }
       })
@@ -72,6 +73,7 @@ export function AuthProvider({ children }) {
   }, [clearAuthState]);
 
   const login = useCallback(async (credentials) => {
+    authStateGeneration.current += 1;
     setAuthNotice(null);
     const session = await requestLogin(credentials);
     setAccessToken(session.access_token);

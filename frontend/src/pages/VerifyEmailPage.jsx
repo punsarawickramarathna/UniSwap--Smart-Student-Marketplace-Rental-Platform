@@ -9,8 +9,9 @@ const CODE_LENGTH = 6;
 export default function VerifyEmailPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const studentId = (params.get("studentId") || "").toUpperCase();
+  const deliveryFailed = params.get("delivery") === "failed";
   const [digits, setDigits] = useState(Array(CODE_LENGTH).fill(""));
-  const [error, setError] = useState("");
+  const [error, setError] = useState(deliveryFailed ? "Your account was created, but the verification email wasn't delivered. Try resending the code in a minute." : "");
   const [notice, setNotice] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(60);
@@ -82,6 +83,7 @@ export default function VerifyEmailPage() {
       setResendSeconds(60);
     } catch (resendError) {
       setError(resendError.message || "Unable to resend the verification code right now.");
+      if (resendError.code === "verification_email_unavailable") setResendSeconds(60);
     }
   }
 
@@ -108,7 +110,7 @@ export default function VerifyEmailPage() {
               <p className="text-xs font-bold uppercase tracking-[.16em] text-[#95e8c4]">Step 2 of 2</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-[-.035em] sm:text-4xl">Check your university email.</h1>
               <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-white/62">
-                We sent a 6-digit code for <span className="font-mono font-bold text-white">{studentId || "your Student ID"}</span>. Enter it below to activate your UniSwap account.
+                Verify <span className="font-mono font-bold text-white">{studentId || "your Student ID"}</span> with the 6-digit code from your university email to activate your UniSwap account.
               </p>
             </div>
 

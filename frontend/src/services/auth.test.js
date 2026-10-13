@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import api, { refreshAccessToken } from "./api";
+import api, { refreshAccessToken, restoreAuthSession } from "./api";
 import {
   forgotPassword,
   getCurrentUser,
@@ -10,16 +10,26 @@ import {
   register,
   resendVerification,
   resetPassword,
+  restoreSession,
   verifyEmail,
 } from "./auth";
 
 vi.mock("./api", () => ({
   default: { get: vi.fn(), post: vi.fn() },
   refreshAccessToken: vi.fn(),
+  restoreAuthSession: vi.fn(),
 }));
 
 describe("auth service", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("restores an optional session without requesting protected identity", async () => {
+    restoreAuthSession.mockResolvedValue(null);
+    await expect(restoreSession()).resolves.toBeNull();
+    expect(restoreAuthSession).toHaveBeenCalledOnce();
+    expect(api.get).not.toHaveBeenCalled();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+  });
 
   it("sends Student ID login using the backend field contract", async () => {
     api.post.mockResolvedValue({ data: { access_token: "token" } });
@@ -45,7 +55,7 @@ describe("auth service", () => {
     expect(api.post).toHaveBeenCalledWith(
       "/auth/register",
       { student_id: "ITBIN12345678", email: "student@campus.edu", password: "password" },
-      { skipAuthRefresh: true },
+      { skipAuthRefresh: true, timeout: 60000 },
     );
   });
 
@@ -61,8 +71,30 @@ describe("auth service", () => {
     expect(api.post).toHaveBeenCalledWith(
       "/auth/resend-verification",
       { student_id: "ITBIN12345678" },
-      { skipAuthRefresh: true },
+      { skipAuthRefresh: true, timeout: 60000 },
     );
+  });
+
+  it("explains the invalid registration field without exposing server input", async () => {
+    api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: { data: { error: {
+        code: "validation_error",
+        fields: ["student_id"],
+        message: "sensitive server input",
+      } } },
+    });
+    await expect(register({ studentId: "bad", email: "student@campus.edu", password: "password" }))
+      .rejects.toThrow("Student ID must be ITBIN followed by exactly 8 digits.");
+  });
+
+  it("reports failed verification email delivery on resend", async () => {
+    api.post.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 503, data: { error: { code: "verification_email_unavailable" } } },
+    });
+    await expect(resendVerification("ITBIN12345678"))
+      .rejects.toThrow("We couldn't send your verification code. Please try resending it in a minute.");
   });
 
   it("loads identity, refreshes, and logs out through centralized clients", async () => {

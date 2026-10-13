@@ -359,6 +359,46 @@ Backend runs on
 http://localhost:8000
 ```
 
+### Registration and verification email troubleshooting
+
+Registration requires a Student ID matching `ITBIN` plus exactly eight digits,
+an email domain listed in `ALLOWED_STUDENT_EMAIL_DOMAINS` (default:
+`horizoncampus.edu.lk`), and a password of 12–128 characters that is not only
+whitespace. A `422` response identifies rejected fields or a domain/password
+policy error; the signup form displays the relevant validation message.
+
+For Gmail delivery, configure the project root `.env`:
+
+```dotenv
+MAIL_FROM=your-sender@gmail.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-sender@gmail.com
+SMTP_PASSWORD=your-16-character-app-password
+SMTP_USE_STARTTLS=true
+```
+
+Use a [Google App Password](https://support.google.com/accounts/answer/185833)
+created for the sender account with 2-Step Verification enabled. A normal Google
+account password will not work. Port 587 uses STARTTLS; port 465 is also supported
+with TLS from the start of the connection. Restart the backend after changing
+`.env`. An SMTP `535` means Google rejected the configured credentials.
+
+Account creation returns `202` with `verification_email_sent` indicating whether
+the SMTP server accepted the email. If delivery fails, the account remains
+unverified and the verification screen shows a warning. Correct the SMTP
+credentials, then use **Resend code** after the 60-second cooldown. If signup
+reports an existing account, use **Continue to verification** instead of creating
+it again. A failed resend returns `503` with `verification_email_unavailable`.
+
+On startup the frontend makes one `POST /api/auth/session` with the CSRF header.
+It restores a valid refresh cookie or returns `200` with `null` for a signed-out
+browser; invalid cookies are cleared. Startup no longer calls `/api/auth/me`
+without an access token. Protected `/api/auth/me` and `/api/auth/refresh` requests
+still return `401` when authentication is missing or invalid.
+`/v1/usage/current` is not a UniSwap endpoint; if that request persists, use the
+browser Network panel's Initiator column to find its source.
+
 ---
 
 ## Frontend Setup

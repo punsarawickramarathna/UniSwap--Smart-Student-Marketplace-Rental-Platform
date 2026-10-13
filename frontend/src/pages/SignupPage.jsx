@@ -14,11 +14,12 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [existingAccount, setExistingAccount] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const normalizedId = studentId.trim().toUpperCase();
   const idValid = STUDENT_ID_PATTERN.test(normalizedId);
-  const passwordValid = password.length >= 12 && password.length <= 128;
+  const passwordValid = password.length >= 12 && password.length <= 128 && Boolean(password.trim());
   const passwordsMatch = password && password === confirmPassword;
   const canSubmit = idValid && passwordValid && passwordsMatch && Boolean(email);
 
@@ -31,16 +32,19 @@ export default function SignupPage() {
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+    setExistingAccount(false);
     if (!canSubmit) {
       setError("Check your Student ID, university email, and password before continuing.");
       return;
     }
     setIsSubmitting(true);
     try {
-      await register({ studentId: normalizedId, email, password });
-      navigate(`/verify-email?studentId=${encodeURIComponent(normalizedId)}`);
+      const result = await register({ studentId: normalizedId, email: email.trim(), password });
+      const deliveryStatus = result.verification_email_sent === false ? "&delivery=failed" : "";
+      navigate(`/verify-email?studentId=${encodeURIComponent(normalizedId)}${deliveryStatus}`);
     } catch (registrationError) {
       setError(registrationError.message || "Unable to create your account right now.");
+      setExistingAccount(registrationError.code === "account_already_exists");
     } finally {
       setIsSubmitting(false);
     }
@@ -124,7 +128,7 @@ export default function SignupPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                <p className={`mt-2 text-xs ${password && !passwordValid ? "text-[#b24848]" : passwordValid ? "text-[#27805f]" : "text-[#7b8984]"}`}>12–128 characters</p>
+                <p className={`mt-2 text-xs ${password && !passwordValid ? "text-[#b24848]" : passwordValid ? "text-[#27805f]" : "text-[#7b8984]"}`}>12–128 characters; cannot be only spaces</p>
               </div>
 
               <div>
@@ -134,6 +138,11 @@ export default function SignupPage() {
               </div>
 
               {error ? <div className="rounded-2xl border border-[#efcaca] bg-[#fff2f2] px-4 py-3 text-sm leading-6 text-[#8b3232]" role="alert">{error}</div> : null}
+              {existingAccount ? (
+                <a className="block text-sm font-bold text-[#1f6653]" href={`/verify-email?studentId=${encodeURIComponent(normalizedId)}&delivery=failed`} onClick={handleAppLink(`/verify-email?studentId=${encodeURIComponent(normalizedId)}&delivery=failed`)}>
+                  Already signed up but didn't receive a code? Continue to verification.
+                </a>
+              ) : null}
 
               <button className="group inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-[#173f36] px-6 py-3.5 text-sm font-bold text-white shadow-[0_14px_34px_rgba(23,63,54,.18)] transition duration-300 hover:-translate-y-0.5 hover:bg-[#245b4d] disabled:cursor-wait disabled:opacity-60" disabled={isSubmitting} type="submit">
                 {isSubmitting ? "Creating secure account..." : "Continue to verification"}

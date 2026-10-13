@@ -38,6 +38,7 @@ vi.mock("axios", () => ({
 import api, {
   clearLocalAuthSession,
   refreshAccessToken,
+  restoreAuthSession,
   setAccessToken,
   setAuthInvalidatedHandler,
 } from "./api";
@@ -72,6 +73,44 @@ describe("central Axios auth client", () => {
 
     expect(config.headers["X-CSRF-Protection"]).toBe("1");
     expect(config.headers.Authorization).toBe("Bearer access-token");
+  });
+
+  it("shares startup checks and accepts signed-out state without a refresh retry", async () => {
+    clients.refreshClient.post.mockResolvedValue({ data: null });
+    const first = restoreAuthSession();
+    const second = restoreAuthSession();
+    expect(first).toBe(second);
+    await expect(first).resolves.toBeNull();
+    await expect(second).resolves.toBeNull();
+    await expect(restoreAuthSession()).resolves.toBeNull();
+    expect(clients.refreshClient.post).toHaveBeenCalledOnce();
+    expect(clients.refreshClient.post).toHaveBeenCalledWith(
+      "/auth/session", null, { headers: { "X-CSRF-Protection": "1" } },
+    );
+  });
+
+  it("uses the restored token on subsequent authenticated requests", async () => {
+    clients.refreshClient.post.mockResolvedValue({ data: { access_token: "restored", user: { id: "user" } } });
+    await expect(restoreAuthSession()).resolves.toHaveProperty("user.id", "user");
+    expect(clients.apiClient.requestInterceptor({ headers: {} }).headers.Authorization).toBe("Bearer restored");
+  });
+
+  it.each(["signed-out response", "401 rejection"])("a late startup %s cannot clear a newer login", async (outcome) => {
+    let resolveRestore;
+    let rejectRestore;
+    clients.refreshClient.post.mockReturnValue(new Promise((resolve, reject) => {
+      resolveRestore = resolve;
+      rejectRestore = reject;
+    }));
+    const startup = restoreAuthSession();
+    const onInvalidated = vi.fn();
+    setAuthInvalidatedHandler(onInvalidated);
+    setAccessToken("new-login-token");
+    if (outcome === "401 rejection") rejectRestore({ response: { status: 401 } });
+    else resolveRestore({ data: null });
+    await expect(startup).rejects.toEqual(expect.objectContaining({ code: "auth_refresh_cancelled" }));
+    expect(onInvalidated).not.toHaveBeenCalled();
+    expect(clients.apiClient.requestInterceptor({ headers: {} }).headers.Authorization).toBe("Bearer new-login-token");
   });
 
   it("shares one refresh across concurrent 401 responses and replays each request once", async () => {
@@ -151,6 +190,7 @@ describe("central Axios auth client", () => {
     "/auth/register",
     "/auth/verify-email",
     "/auth/resend-verification",
+    "/auth/session",
   ])("does not refresh public registration flow %s", async (url) => {
     const error = unauthorizedError({ url });
     await expect(clients.apiClient.responseErrorInterceptor(error)).rejects.toBe(error);

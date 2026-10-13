@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import api, { refreshAccessToken } from "./api";
+import api, { refreshAccessToken, restoreAuthSession } from "./api";
 
 const SAFE_LOGIN_MESSAGES = {
   email_verification_required: "Verify your university email before signing in.",
@@ -35,13 +35,22 @@ export async function login(credentials) {
 const SAFE_REGISTRATION_MESSAGES = {
   account_already_exists: "An account with these student details already exists.",
   student_email_domain_not_allowed: "Use an approved university email address.",
-  password_policy_failed: "Use a password between 12 and 128 characters.",
+  password_policy_failed: "Use a password between 12 and 128 characters that is not only whitespace.",
   validation_error: "Check your Student ID, university email, and password.",
 };
 
+const REGISTRATION_FIELD_MESSAGES = {
+  student_id: "Student ID must be ITBIN followed by exactly 8 digits.",
+  email: "Enter a valid university email address.",
+  password: "Use a password between 12 and 128 characters that is not only whitespace.",
+};
+
 export class RegistrationError extends Error {
-  constructor(code) {
-    super(SAFE_REGISTRATION_MESSAGES[code] ?? "Unable to create your account right now. Please try again.");
+  constructor(code, fields = []) {
+    const fieldMessages = code === "validation_error" && Array.isArray(fields)
+      ? fields.map((field) => REGISTRATION_FIELD_MESSAGES[field]).filter(Boolean)
+      : [];
+    super(fieldMessages.join(" ") || SAFE_REGISTRATION_MESSAGES[code] || "Unable to create your account right now. Please try again.");
     this.name = "RegistrationError";
     this.code = code;
   }
@@ -52,18 +61,19 @@ export async function register({ studentId, email, password }) {
     const response = await api.post(
       "/auth/register",
       { student_id: studentId, email, password },
-      { skipAuthRefresh: true },
+      { skipAuthRefresh: true, timeout: 60000 },
     );
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new RegistrationError(error.response?.data?.error?.code);
+      throw new RegistrationError(error.response?.data?.error?.code, error.response?.data?.error?.fields);
     }
     throw new RegistrationError("unexpected_error");
   }
 }
 
 const SAFE_VERIFICATION_MESSAGES = {
+  verification_email_unavailable: "We couldn't send your verification code. Please try resending it in a minute.",
   invalid_verification_code: "The verification code is invalid or has expired.",
   too_many_verification_attempts: "Too many verification attempts. Please try again later.",
   validation_error: "Check your Student ID and 6-digit verification code.",
@@ -98,7 +108,7 @@ export async function resendVerification(studentId) {
     const response = await api.post(
       "/auth/resend-verification",
       { student_id: studentId },
-      { skipAuthRefresh: true },
+      { skipAuthRefresh: true, timeout: 60000 },
     );
     return response.data;
   } catch (error) {
@@ -118,7 +128,9 @@ export function refreshSession() {
   return refreshAccessToken();
 }
 
-export const restoreSession = refreshSession;
+export function restoreSession() {
+  return restoreAuthSession();
+}
 
 export async function logout() {
   await api.post("/auth/logout", null, { skipAuthRefresh: true });

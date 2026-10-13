@@ -24,6 +24,7 @@ async def test_register_normalizes_student_id_and_sends_code(client, app_context
     )
     assert response.status_code == 202
     assert response.json()["student_id"] == "ITBIN12345678"
+    assert response.json()["verification_email_sent"] is True
     assert len(app.state.email_sender.verification_messages) == 1
     message = app.state.email_sender.verification_messages[0]
     assert message["recipient"] == "student@campus.edu"
@@ -68,6 +69,49 @@ async def test_register_rejects_unapproved_email_domain(client):
     )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "student_email_domain_not_allowed"
+
+
+@pytest.mark.asyncio
+async def test_failed_delivery_preserves_account_and_can_be_recovered_by_resend(client, app_context):
+    app, session_factory = app_context
+    app.state.email_sender.fail_verification = True
+    details = {"student_id": "ITBIN12345678", "email": "student@campus.edu", "password": PASSWORD}
+    response = await client.post("/api/auth/register", json=details)
+    assert response.status_code == 202
+    assert response.json()["verification_email_sent"] is False
+    assert "couldn't send" in response.json()["message"]
+
+    async with session_factory() as session:
+        user = await session.scalar(select(User).where(User.student_id == details["student_id"]))
+        assert user is not None
+        assert user.email_verified_at is None
+
+    duplicate = await client.post("/api/auth/register", json=details)
+    assert duplicate.status_code == 409
+    app.state.email_verification_rate_limiter._resend_last.clear()
+    failed_resend = await client.post("/api/auth/resend-verification", json={"student_id": details["student_id"]})
+    assert failed_resend.status_code == 503
+    assert failed_resend.json()["error"]["code"] == "verification_email_unavailable"
+
+    app.state.email_sender.fail_verification = False
+    app.state.email_verification_rate_limiter._resend_last.clear()
+    resent = await client.post("/api/auth/resend-verification", json={"student_id": details["student_id"]})
+    assert resent.status_code == 202
+    code = app.state.email_sender.verification_messages[-1]["code"]
+    verified = await client.post("/api/auth/verify-email", json={"student_id": details["student_id"], "code": code})
+    assert verified.status_code == 200
+    login = await client.post("/api/auth/login", json={"student_id": details["student_id"], "password": PASSWORD})
+    assert login.status_code == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("password", ["short", " " * 12, "x" * 129])
+async def test_register_rejects_passwords_outside_policy(client, password):
+    response = await client.post("/api/auth/register", json={
+        "student_id": "ITBIN12345678", "email": "student@campus.edu", "password": password,
+    })
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "password_policy_failed"
 
 
 @pytest.mark.asyncio
